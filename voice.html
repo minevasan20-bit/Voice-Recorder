@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Recorder Pro</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#00bbf9" />
+<style>
+/* ========== THEMES ========== */
+:root {
+  --bg-1: #1e1e2f; --bg-2: #2c2c54; --bg-3: #16162a;
+  --fg: #ffffff; --fg-dim: rgba(255,255,255,0.7);
+  --accent: #00f5d4; --accent-2: #00bbf9;
+  --danger: #ff4d6d; --warn: #ffb703; --success: #00f5a0;
+  --card: rgba(255,255,255,0.07);
+  --card-hover: rgba(255,255,255,0.12);
+  --border: rgba(255,255,255,0.1);
+}
+[data-theme="purple"] {
+  --bg-1: #1a0033; --bg-2: #3d0066; --bg-3: #12002b;
+  --accent: #b16ceb; --accent-2: #ff6ec7;
+}
+[data-theme="green"] {
+  --bg-1: #0a1f1a; --bg-2: #143d33; --bg-3: #071510;
+  --accent: #00f5a0; --accent-2: #00ffb3;
+}
+[data-theme="orange"] {
+  --bg-1: #2b0a1a; --bg-2: #4d1030; --bg-3: #1a0510;
+  --accent: #ff9e00; --accent-2: #ff5500;
+}
+[data-theme="light"] {
+  --bg-1: #f0f4ff; --bg-2: #e6ecff; --bg-3: #ffffff;
+  --fg: #1a1a2e; --fg-dim: rgba(26,26,46,0.7);
+  --card: rgba(0,0,0,0.05); --card-hover: rgba(0,0,0,0.08);
+  --border: rgba(0,0,0,0.1);
+}
+
+/* ========== BASE ========== */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: linear-gradient(160deg, var(--bg-3), var(--bg-1) 40%, var(--bg-2));
+  color: var(--fg);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.4s ease, color 0.3s ease;
+}
+
+/* ========== HEADER ========== */
+header {
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(20px);
+  background: rgba(0,0,0,0.25);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.title {
+  font-size: 20px; font-weight: 800;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  display: flex; align-items: center; gap: 8px;
+}
+.header-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--fg); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.icon-btn:active { transform: scale(0.92); background: var(--card-hover); }
+.icon-btn.active { background: var(--accent-2); border-color: var(--accent-2); color: #000; }
+
+/* ========== TABS ========== */
+.tabs {
+  display: flex; gap: 4px; margin-top: 12px;
+  background: var(--card); border-radius: 12px; padding: 4px;
+}
+.tab {
+  flex: 1; padding: 10px; border: none; background: transparent;
+  color: var(--fg-dim); font-size: 13px; font-weight: 600;
+  border-radius: 9px; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #000;
+}
+
+/* ========== MAIN ========== */
+main { padding: 20px 16px 100px; max-width: 700px; margin: 0 auto; }
+.view { display: none; animation: fadeIn 0.3s ease; }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ========== RECORD VIEW ========== */
+.recorder-box {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; padding: 20px 0;
+}
+.rec-btn {
+  width: 160px; height: 160px; border-radius: 50%;
+  border: none; color: #fff; font-weight: 800;
+  font-size: 17px; letter-spacing: 1px; cursor: pointer;
+  background: radial-gradient(circle at 30% 30%, #ff4d6d, #c9184a);
+  box-shadow: 0 0 40px rgba(255,77,109,0.55), inset 0 -8px 20px rgba(0,0,0,0.3);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 6px; transition: all 0.2s ease;
+  position: relative;
+}
+.rec-btn:active { transform: scale(0.94); }
+.rec-btn.recording {
+  background: radial-gradient(circle at 30% 30%, #f72585, #7209b7);
+  animation: pulse 1.4s infinite;
+}
+.rec-btn.paused {
+  background: radial-gradient(circle at 30% 30%, #ffb703, #fb8500);
+  animation: none;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 40px rgba(247,37,133,0.6); }
+  50%     { box-shadow: 0 0 70px rgba(247,37,133,1); }
+}
+.rec-btn .big-icon { font-size: 44px; }
+.timer-display {
+  font-size: 40px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent); letter-spacing: 2px;
+  text-shadow: 0 0 20px rgba(0,245,212,0.4);
+}
+.status-text { font-size: 14px; color: var(--fg-dim); text-align: center; min-height: 20px; }
+
+/* Visualizer */
+.visualizer {
+  width: 100%; max-width: 500px; height: 90px;
+  background: var(--card); border-radius: 16px;
+  overflow: hidden; border: 1px solid var(--border);
+  position: relative;
+}
+.visualizer canvas { width: 100%; height: 100%; display: block; }
+
+/* Live meter */
+.level-meter {
+  width: 100%; max-width: 500px; height: 8px;
+  background: var(--card); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.level-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--warn), var(--danger));
+  transition: width 0.08s linear;
+}
+
+/* Controls row */
+.controls-row {
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  width: 100%; max-width: 500px;
+}
+.ctrl-btn {
+  flex: 1; min-width: 90px; padding: 12px 14px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--fg); border-radius: 12px; font-weight: 600;
+  font-size: 13px; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.ctrl-btn:active { transform: scale(0.96); background: var(--card-hover); }
+.ctrl-btn:disabled { opacity: 0.4; }
+.ctrl-btn.accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #000; border-color: transparent;
+}
+
+/* Bookmark marker */
+.bookmark-info {
+  font-size: 12px; color: var(--fg-dim);
+  text-align: center; min-height: 16px;
+}
+
+/* Transcription panel */
+.transcript-box {
+  width: 100%; max-width: 500px;
+  background: var(--card); border-radius: 12px;
+  padding: 14px; border: 1px solid var(--border);
+  max-height: 180px; overflow-y: auto;
+  font-size: 13px; line-height: 1.5;
+  display: none;
+}
+.transcript-box.show { display: block; }
+.transcript-box .label {
+  font-size: 11px; color: var(--accent); font-weight: 700;
+  margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* ========== SETTINGS VIEW ========== */
+.section-title {
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 1.5px;
+  margin: 20px 0 10px;
+}
+.setting-item {
+  background: var(--card); border-radius: 12px;
+  padding: 14px; margin-bottom: 8px;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.setting-item .label-group { flex: 1; min-width: 140px; }
+.setting-item .name { font-size: 14px; font-weight: 600; }
+.setting-item .desc { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
+.setting-item select,
+.setting-item input[type="number"],
+.setting-item input[type="text"] {
+  background: var(--bg-3); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px; min-width: 100px;
+  outline: none;
+}
+.setting-item input[type="range"] { width: 150px; accent-color: var(--accent); }
+
+/* Toggle switch */
+.switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider-toggle {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--card); border-radius: 26px;
+  transition: 0.3s; border: 1px solid var(--border);
+}
+.slider-toggle:before {
+  content: ""; position: absolute;
+  height: 18px; width: 18px; left: 3px; top: 3px;
+  background: var(--fg-dim); border-radius: 50%; transition: 0.3s;
+}
+.switch input:checked + .slider-toggle {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+.switch input:checked + .slider-toggle:before {
+  transform: translateX(22px); background: #fff;
+}
+
+/* Theme picker */
+.theme-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+.theme-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--border); cursor: pointer;
+  transition: transform 0.2s;
+}
+.theme-dot.active { border-color: var(--accent); transform: scale(1.15); }
+.theme-dot[data-t="default"] { background: linear-gradient(135deg,#1e1e2f,#2c2c54); }
+.theme-dot[data-t="purple"]  { background: linear-gradient(135deg,#3d0066,#1a0033); }
+.theme-dot[data-t="green"]   { background: linear-gradient(135deg,#00f5a0,#0a1f1a); }
+.theme-dot[data-t="orange"]  { background: linear-gradient(135deg,#ff9e00,#4d1030); }
+.theme-dot[data-t="light"]   { background: linear-gradient(135deg,#f0f4ff,#e6ecff); }
+
+/* ========== LIBRARY VIEW ========== */
+.library-toolbar {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.search-input {
+  flex: 1; min-width: 140px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--fg); border-radius: 10px;
+  padding: 10px 12px; font-size: 13px; outline: none;
+}
+.search-input::placeholder { color: var(--fg-dim); }
+.stats-bar {
+  display: flex; gap: 12px; margin-bottom: 14px;
+  padding: 12px 14px; background: var(--card); border-radius: 12px;
+  font-size: 12px; flex-wrap: wrap;
+  border: 1px solid var(--border);
+}
+.stat-item { display: flex; flex-direction: column; }
+.stat-item .val { font-size: 16px; font-weight: 700; color: var(--accent); }
+.stat-item .lbl { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; }
+
+.rec-list { display: flex; flex-direction: column; gap: 10px; }
+.rec-card {
+  background: var(--card); border-radius: 14px;
+  padding: 14px; border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.rec-card:hover { background: var(--card-hover); }
+.rec-card.fav { border-color: var(--warn); box-shadow: 0 0 0 1px rgba(255,183,3,0.3); }
+.rec-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px;
+}
+.rec-name {
+  font-size: 14px; font-weight: 600; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rec-meta { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
+.rec-badge {
+  font-size: 10px; padding: 3px 8px; border-radius: 8px;
+  background: var(--accent-2); color: #000; font-weight: 700;
+}
+.rec-badge.fav-badge { background: var(--warn); }
+.rec-wave {
+  width: 100%; height: 40px; margin: 8px 0;
+  background: rgba(0,0,0,0.2); border-radius: 8px;
+}
+[data-theme="light"] .rec-wave { background: rgba(0,0,0,0.06); }
+.rec-wave canvas { width: 100%; height: 100%; display: block; }
+.rec-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini-btn {
+  flex: 1; min-width: 60px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--fg);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; display: flex; align-items: center;
+  justify-content: center; gap: 4px;
+}
+.mini-btn:active { transform: scale(0.95); }
+.mini-btn.danger { background: rgba(255,77,109,0.15); color: var(--danger); }
+.mini-btn.good { background: rgba(0,245,160,0.15); color: var(--success); }
+
+/* Playback bar */
+.play-bar {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.play-bar.show { display: block; }
+.play-bar audio { width: 100%; height: 36px; margin-bottom: 8px; }
+.play-controls {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  font-size: 12px; align-items: center;
+}
+.play-controls label {
+  display: flex; align-items: center; gap: 4px;
+  color: var(--fg-dim);
+}
+.play-controls input[type="range"] { width: 70px; accent-color: var(--accent); }
+
+/* Empty state */
+.empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--fg-dim);
+}
+.empty .ico { font-size: 60px; margin-bottom: 12px; opacity: 0.4; }
+
+/* Modal */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 20px;
+  backdrop-filter: blur(6px);
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--bg-1); border-radius: 18px;
+  padding: 22px; max-width: 420px; width: 100%;
+  border: 1px solid var(--border);
+  max-height: 85vh; overflow-y: auto;
+  animation: modalIn 0.25s ease;
+}
+@keyframes modalIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.modal h3 { font-size: 17px; margin-bottom: 14px; }
+.modal input, .modal textarea, .modal select {
+  width: 100%; background: var(--card); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 12px; font-size: 14px; margin-bottom: 10px;
+  outline: none; font-family: inherit;
+}
+.modal textarea { resize: vertical; min-height: 70px; }
+.modal-btns { display: flex; gap: 8px; margin-top: 8px; }
+.modal-btns button {
+  flex: 1; padding: 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--fg); font-weight: 600; cursor: pointer;
+  font-size: 14px;
+}
+.modal-btns button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #000; border-color: transparent;
+}
+.modal-btns button.danger { background: var(--danger); color: #fff; border-color: transparent; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 30px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--accent); color: #000;
+  padding: 12px 22px; border-radius: 30px;
+  font-size: 13px; font-weight: 700;
+  z-index: 999; transition: transform 0.35s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  max-width: 90%;
+  text-align: center;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.error { background: var(--danger); color: #fff; }
+.toast.warn { background: var(--warn); color: #000; }
+
+/* Countdown overlay */
+.countdown-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  display: none; align-items: center; justify-content: center;
+  z-index: 500; font-size: 150px; font-weight: 900;
+  color: var(--accent); text-shadow: 0 0 60px var(--accent);
+}
+.countdown-overlay.show { display: flex; }
+.countdown-overlay span { animation: countPop 0.9s ease; }
+@keyframes countPop {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+/* Footer hint */
+.hint {
+  text-align: center; font-size: 11px;
+  color: var(--fg-dim); padding: 20px 0 10px;
+  opacity: 0.6;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--card-hover); border-radius: 3px; }
+
+/* Responsive */
+@media (max-width: 400px) {
+  .rec-btn { width: 140px; height: 140px; }
+  .timer-display { font-size: 34px; }
+  .mini-btn { min-width: 50px; font-size: 10px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="title">🎙️ Voice Recorder Pro</div>
+    <div class="header-actions">
+      <button class="icon-btn" id="themeBtn" title="Cycle Theme">🎨</button>
+      <button class="icon-btn" id="helpBtn" title="Help">❔</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-view="record">🎤 Record</button>
+    <button class="tab" data-view="library">📁 Library</button>
+    <button class="tab" data-view="settings">⚙️ Settings</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ========== RECORD VIEW ========== -->
+  <section id="view-record" class="view active">
+    <div class="recorder-box">
+      <button id="recBtn" class="rec-btn">
+        <span class="big-icon">🎤</span>
+        <span id="recLabel">START</span>
+      </button>
+      <div id="timer" class="timer-display">00:00.0</div>
+      <div id="status" class="status-text">Tap to start recording</div>
+      <div id="bookmarkInfo" class="bookmark-info"></div>
+    </div>
+
+    <div class="visualizer">
+      <canvas id="vizCanvas"></canvas>
+    </div>
+
+    <div class="level-meter" style="margin-top:10px;">
+      <div id="levelFill" class="level-fill"></div>
+    </div>
+
+    <div class="controls-row" style="margin-top:14px;">
+      <button id="pauseBtn" class="ctrl-btn" disabled>⏸️ Pause</button>
+      <button id="bookmarkBtn" class="ctrl-btn" disabled>🔖 Bookmark</button>
+      <button id="transcribeBtn" class="ctrl-btn" disabled>📝 Transcript</button>
+    </div>
+
+    <div id="transcriptBox" class="transcript-box">
+      <div class="label">🔴 Live Transcript</div>
+      <div id="transcriptText"></div>
+    </div>
+  </section>
+
+  <!-- ========== LIBRARY VIEW ========== -->
+  <section id="view-library" class="view">
+    <div class="stats-bar">
+      <div class="stat-item"><span class="val" id="statCount">0</span><span class="lbl">Recordings</span></div>
+      <div class="stat-item"><span class="val" id="statTime">0:00</span><span class="lbl">Total Time</span></div>
+      <div class="stat-item"><span class="val" id="statSize">0 KB</span><span class="lbl">Total Size</span></div>
+      <div class="stat-item"><span class="val" id="statFav">0</span><span class="lbl">Favorites</span></div>
+    </div>
+
+    <div class="library-toolbar">
+      <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search recordings..." />
+      <select id="sortSelect" class="search-input" style="flex:0 0 auto; min-width:100px;">
+        <option value="date-desc">Newest</option>
+        <option value="date-asc">Oldest</option>
+        <option value="name-asc">Name A-Z</option>
+        <option value="size-desc">Largest</option>
+        <option value="duration-desc">Longest</option>
+      </select>
+    </div>
+
+    <div id="recList" class="rec-list"></div>
+    <div id="emptyState" class="empty">
+      <div class="ico">🎙️</div>
+      <div>No recordings yet</div>
+      <div style="font-size:12px;margin-top:6px;">Tap "Record" to get started</div>
+    </div>
+
+    <div class="hint">Total files auto-saved to your device's Downloads folder</div>
+  </section>
+
+  <!-- ========== SETTINGS VIEW ========== -->
+  <section id="view-settings" class="view">
+
+    <div class="section-title">🎨 Appearance</div>
+    <div class="setting-item">
+      <div class="label-group">
+        <div class="name">Theme</div>
+        <div class="desc">Pick your color palette</div>
+      </div>
+      <div class="theme-picker" id="themePicker">
+        <div class="theme-dot active" data-t="default" title="Default"></div>
+        <div class="theme-dot" data-t="purple" title="Purple"></div>
+        <div class="theme-dot" data-t="green" title="Green"></div>
+        <div class="theme-dot" data-t="orange" title="Orange"></div>
+        <div class="theme-dot" data-t="light" title="Light"></div>
+      </div>
+    </div>
+
+    <div class="section-title">🎙️ Audio Quality</div>
+    <div class="setting-item">
+      <div class="label-group"><div class="name">Sample Rate</div><div class="desc">Higher = better quality</div></div>
+      <select id="setSampleRate">
+        <option value="22050">22050 Hz</option>
+        <option value="44100">44100 Hz</option>
+        <option value="48000" selected>48000 Hz</option>
+      </select>
+    </div>
+    <div class="setting-item">
+      <div class="label-group"><div class="name">Bitrate</div><div class="desc">Opus encoder quality</div></div>
+      <select id="setBitrate">
+        <option value="64000">64 kbps</option>
+        <option value="96000">96 kbps</option>
+        <option value="128000" selected>128 kbps</option>
+        <option value

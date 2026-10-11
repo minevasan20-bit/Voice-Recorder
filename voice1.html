@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Recorder - Clear Audio</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e1e2f, #2c2c54);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, #00f5d4, #00bbf9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  .rec-btn {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle, #ff4d6d, #c9184a);
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(255, 77, 109, 0.6);
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .rec-btn:active { transform: scale(0.95); }
+  .rec-btn.recording {
+    background: radial-gradient(circle, #f72585, #7209b7);
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(247, 37, 133, 0.7); }
+    50%      { box-shadow: 0 0 60px rgba(247, 37, 133, 1); }
+  }
+  .icon { font-size: 34px; }
+  .status {
+    margin-top: 24px;
+    font-size: 14px;
+    opacity: 0.85;
+    text-align: center;
+    min-height: 20px;
+  }
+  .timer {
+    margin-top: 10px;
+    font-size: 32px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: #00f5d4;
+  }
+  .visualizer {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 340px;
+    height: 60px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+  .recordings {
+    margin-top: 30px;
+    width: 100%;
+    max-width: 500px;
+  }
+  .recordings h2 {
+    font-size: 15px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+  }
+  .rec-item {
+    background: rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .rec-info { flex: 1; min-width: 0; }
+  .rec-name {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 6px;
+  }
+  audio { width: 100%; height: 32px; }
+  .actions { display: flex; flex-direction: column; gap: 6px; }
+  .small-btn {
+    background: #00bbf9;
+    border: none;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+  }
+  .small-btn.danger { background: #c9184a; }
+</style>
+</head>
+<body>
+
+  <h1>🎙️ Voice Recorder</h1>
+  <p class="subtitle">Clear voice · No background noise · Auto-saved to your device</p>
+
+  <button id="recBtn" class="rec-btn">
+    <span class="icon">🎤</span>
+    <span id="btnLabel">START</span>
+  </button>
+
+  <div id="timer" class="timer">00:00</div>
+  <div id="status" class="status">Tap to start recording</div>
+
+  <div class="visualizer"><canvas id="canvas"></canvas></div>
+
+  <div class="recordings">
+    <h2>📁 SAVED RECORDINGS (auto-downloaded)</h2>
+    <div id="list"></div>
+  </div>
+
+<script>
+(() => {
+  const recBtn   = document.getElementById('recBtn');
+  const btnLabel = document.getElementById('btnLabel');
+  const statusEl = document.getElementById('status');
+  const timerEl  = document.getElementById('timer');
+  const listEl   = document.getElementById('list');
+  const canvas   = document.getElementById('canvas');
+  const ctx      = canvas.getContext('2d');
+
+  let mediaRecorder = null;
+  let mediaStream   = null;
+  let chunks        = [];
+  let isRecording   = false;
+  let startTime     = 0;
+  let timerInterval = null;
+  let audioCtx      = null;
+  let analyser      = null;
+  let animId        = null;
+
+  // ---- Better clarity constraints ----
+  const constraints = {
+    audio: {
+      channelCount: 1,
+      sampleRate: 48000,
+      sampleSize: 16,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      // Some browsers support these (experimental)
+      googEchoCancellation: true,
+      googAutoGainControl: true,
+      googNoiseSuppression: true,
+      googHighpassFilter: true,
+      googTypingNoiseDetection: true
+    },
+    video: false
+  };
+
+  function pickMimeType() {
+    const candidates = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+      'audio/mpeg'
+    ];
+    for (const t of candidates) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+  }
+
+  function formatTime(ms) {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return String(m).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+  }
+
+  function drawVisualizer() {
+    if (!analyser) return;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+    const draw = () => {
+      animId = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(dataArray);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const barWidth = (canvas.width / bufferLength) * 2.2;
+      let x = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 255;
+        const barHeight = v * canvas.height;
+        const g = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+        g.addColorStop(0, '#00f5d4');
+        g.addColorStop(1, '#00bbf9');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+        x += barWidth + 1;
+      }
+    };
+    draw();
+  }
+
+  async function startRecording() {
+    try {
+      statusEl.textContent = 'Requesting microphone...';
+      mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Set up analyser for the visualizer
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(mediaStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      drawVisualizer();
+
+      const mimeType = pickMimeType();
+      const options = mimeType ? { mimeType, audioBitsPerSecond: 128000 } : {};
+      mediaRecorder = new MediaRecorder(mediaStream, options);
+      chunks = [];
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        handleFinishedRecording(blob);
+      };
+
+      mediaRecorder.start(1000);
+      isRecording = true;
+      startTime = Date.now();
+
+      recBtn.classList.add('recording');
+      btnLabel.textContent = 'STOP';
+      statusEl.textContent = '🔴 Recording clear voice...';
+
+      timerInterval = setInterval(() => {
+        timerEl.textContent = formatTime(Date.now() - startTime);
+      }, 200);
+
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = '❌ Microphone error: ' + err.message;
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder) return;
+    mediaRecorder.stop();
+    mediaStream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+    cancelAnimationFrame(animId);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    clearInterval(timerInterval);
+    isRecording = false;
+    recBtn.classList.remove('recording');
+    btnLabel.textContent = 'START';
+    statusEl.textContent = '✅ Saved to your device';
+  }
+
+  function handleFinishedRecording(blob) {
+    const ext = blob.type.includes('mp4') ? 'm4a'
+              : blob.type.includes('ogg') ? 'ogg'
+              : 'webm';
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    const fileName = `VoiceRec_${stamp}.${ext}`;
+
+    const url = URL.createObjectURL(blob);
+
+    // ---- Auto-download to local storage ----
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    addToList(fileName, url, blob.size);
+  }
+
+  function addToList(name, url, size) {
+    const item = document.createElement('div');
+    item.className = 'rec-item';
+
+    const kb = (size / 1024).toFixed(1);
+
+    item.innerHTML = `
+      <div class="rec-info">
+        <div class="rec-name">🎵 ${name} <span style="opacity:.6">(${kb} KB)</span></div>
+        <audio controls src="${url}"></audio>
+      </div>
+      <div class="actions">
+        <a class="small-btn" href="${url}" download="${name}">⬇ Save</a>
+        <button class="small-btn danger">✕</button>
+      </div>
+    `;
+
+    item.querySelector('.danger').onclick = () => {
+      URL.revokeObjectURL(url);
+      item.remove();
+    };
+
+    listEl.prepend(item);
+  }
+
+  recBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  });
+
+  // Prevent accidental close during recording
+  window.addEventListener('beforeunload', e => {
+    if (isRecording) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+})();
+</script>
+</body>
+</html>
